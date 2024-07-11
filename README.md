@@ -1,5 +1,13 @@
 # SimLOD-main
  用于学习SimLOD并保存可运行版本
+ cuda工具版本 cuda_12.4.1_551.78_windows.exe
+ E:\>nvcc --version
+nvcc: NVIDIA (R) Cuda compiler driver
+Copyright (c) 2005-2024 NVIDIA Corporation
+Built on Thu_Mar_28_02:30:10_Pacific_Daylight_Time_2024
+Cuda compilation tools, release 12.4, V12.4.131
+Build cuda_12.4.r12.4/compiler.34097967_0
+
  
 # SimLOD: Simultaneous LOD Generation and Rendering
 Markus Schütz, Lukas Herzberger, Michael Wimmer
