@@ -137,7 +137,7 @@ struct CudaPrint {
 	}
 
 	void init(){
-		cuStreamCreate(&cstream, CU_STREAM_NON_BLOCKING);
+		cuStreamCreate(&cstream, CU_STREAM_NON_BLOCKING);  // 创建非阻塞流, 在一个流中，CUDA操作是顺序执行的，而不同流中的操作可以并行执行。这种设计使得CUDA能够有效地进行异步执行，从而提高设备的利用率。
 		cuMemAlloc(&cptr, sizeof(CudaPrintBuffer));
 		cuMemsetD32(cptr, 0, 4);
 		cuEventCreate(&cevent_loadCounterFinished, 0);

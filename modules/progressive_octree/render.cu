@@ -1,6 +1,10 @@
 // Some code in this file, particularly frustum, ray and intersection tests, 
 // is adapted from three.js. Three.js is licensed under the MIT license
 // This file this follows the three.js licensing
+// 本文件中的一些代码，特别是视锥体、光线和交点测试，
+// 是从 three.js 中改编而来的。three.js 遵循 MIT 许可协议。
+// 本文件遵循 three.js 的许可协议。
+
 // License: MIT https://github.com/mrdoob/three.js/blob/dev/LICENSE
 
 #include <cooperative_groups.h>
@@ -46,14 +50,15 @@ uint32_t SPECTRAL[8] = {
 	0xbd8832,
 };
 
+// 为相异层级赋色。color by node.
 uint32_t getLodColor(int level){
 	int index = float(8 - level) * 1.8f;
 	index = clamp(index, 0, 7);
 
-	uint32_t color = SPECTRAL[index];
+	uint32_t color = SPECTRAL[0];
 
-	// if(level == 4) return 0x000000ff;
-	// if(level == 8) return 0x0000ffff;
+	 //if(level == 4) return 0x000000ff;
+	 //if(level == 8) return 0x0000ffff;
 	
 	return color;
 }
@@ -66,41 +71,42 @@ void drawPoint(Point point, Node* node, uint64_t* framebuffer){
 	int x = (ndc.x * 0.5 + 0.5) * uniforms.width;
 	int y = (ndc.y * 0.5 + 0.5) * uniforms.height;
 
+	// 点的绘制范围被限制在屏幕坐标(1, 1) 到(width - 2, height - 2) 之间，这给点的大小和边界留出了一些缓冲空间。
 	if(x > 1 && x < uniforms.width  - 2.0)
-	if(y > 1 && y < uniforms.height - 2.0)
-	{
-
-		uint32_t color = point.color;
-		if(uniforms.colorByNode){
-			color = (node->getID() % 127) * 123456789ull;
-		}else if(uniforms.colorByLOD){
-			color = getLodColor(node->level);
-		}
-
-		// float w = y - 3.0 * x;
-		// if(w > -3800.0){
-		// 	color = point.color;
-		// }else{
-		// 	color = (node->getID() % 127) * 123456789ull;
-		// 	color = getLodColor(node->level);
-		// }
-
-		for(int ox = 0; ox < uniforms.pointSize; ox++)
-		for(int oy = 0; oy < uniforms.pointSize; oy++)
+		if(y > 1 && y < uniforms.height - 2.0)
 		{
-			uint32_t px = clamp(x + ox, 0, int(uniforms.width));
-			uint32_t py = clamp(y + oy, 0, int(uniforms.height));
-
-			uint32_t pixelID = px + int(uniforms.width) * py;
-			uint64_t udepth = *((uint32_t*)&depth);
-			uint64_t encoded = (udepth << 32) | color;
-
-			if(encoded < framebuffer[pixelID]){
-				atomicMin(&framebuffer[pixelID], encoded);
+			// 颜色的选择与设置。
+			uint32_t color = point.color;
+			if(uniforms.colorByNode){
+				color = (node->getID() % 127) * 123456789ull;
+			}else if(uniforms.colorByLOD){
+				color = getLodColor(node->level);
 			}
-		}
 
-	}
+			// float w = y - 3.0 * x;
+			// if(w > -3800.0){
+			// 	color = point.color;
+			// }else{
+			// 	color = (node->getID() % 127) * 123456789ull;
+			// 	color = getLodColor(node->level);
+			// }
+
+			for(int ox = 0; ox < uniforms.pointSize; ox++)
+				for(int oy = 0; oy < uniforms.pointSize; oy++)
+				{
+					uint32_t px = clamp(x + ox, 0, int(uniforms.width));
+					uint32_t py = clamp(y + oy, 0, int(uniforms.height));
+
+					uint32_t pixelID = px + int(uniforms.width) * py;
+					uint64_t udepth = *((uint32_t*)&depth);
+					uint64_t encoded = (udepth << 32) | color;
+
+					if(encoded < framebuffer[pixelID]){
+						atomicMin(&framebuffer[pixelID], encoded);
+					}
+				}
+
+		}
 }
 
 void drawNode(Chunk* chunk, Node* node, uint32_t numElements, uint64_t* framebuffer){
@@ -200,8 +206,8 @@ void drawNodes(Node* nodes, uint32_t numNodes, uint64_t* framebuffer){
 			cubeMin.z + float(node->Z + 0.0f) * scale,
 		};
 
-		drawNode(node->points, node, node->numPoints, framebuffer);
-		drawNode(node->voxelChunks, node, node->numVoxels, framebuffer);
+		drawNode(node->points, node, node->numPoints, framebuffer); // draw points
+		drawNode(node->voxelChunks, node, node->numVoxels, framebuffer); // draw voxels
 
 		block.sync();
 	}
@@ -1081,8 +1087,7 @@ void compute_visibility_add(
 	grid.sync();
 }
 
-extern "C" __global__
-void kernel_render(
+extern "C" __global__ void kernel_render(
 	uint32_t* buffer,
 	const Uniforms _uniforms,
 	Node* nodes,
@@ -1101,8 +1106,9 @@ void kernel_render(
 		*frameStartTimestamp = nanotime();
 	}
 
+	// 使用自定义类Allocator类对已有的内存缓冲区进行分配
 	uniforms = _uniforms;
-	Allocator _allocator(buffer, 0);
+	Allocator _allocator(buffer, 0);  //定义Allocator 类型对象_allocator
 	allocator = &_allocator;
 
 	Node* visibleNodes                 = allocator->alloc<Node*>(100'000 * sizeof(Node));
@@ -1140,9 +1146,9 @@ void kernel_render(
 
 	grid.sync();
 	
-	// if(uniforms.doUpdateVisibility)
+	//if(uniforms.doUpdateVisibility)
 	{
-		if(visiblityMethod == VISIBLITY_DISJUNCT){
+		if(visiblityMethod == VISIBLITY_DISJUNCT){  // 调用不同的函数来计算哪些点云节点在当前视角可见
 			compute_visibility_disjunct(
 				numVisibleNodes,
 				numVisiblePoints,
@@ -1177,7 +1183,7 @@ void kernel_render(
 
 	{ // draw nodes, boxes, lines, ...
 		if(uniforms.useHighQualityShading){
-			drawNodesHQS(visibleNodes, numVisibleNodes, framebuffer);
+			drawNodesHQS(visibleNodes, numVisibleNodes, framebuffer);   // 依据可见节点的标记，调用 函数来渲染这些节点的点云
 		}else{
 			drawNodes(visibleNodes, numVisibleNodes, framebuffer);
 		}

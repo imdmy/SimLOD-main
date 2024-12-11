@@ -60,7 +60,7 @@ float4 operator*(const mat4& a, const float4& b){
 }
 
 struct Chunk{
-	Point points[POINTS_PER_CHUNK];
+	Point points[POINTS_PER_CHUNK];  // 声明一个Point类型的数组，大小为POINTS_PER_CHUNK
 	int size;
 	int padding_0;
 	Chunk* next;
@@ -83,7 +83,7 @@ struct Node{
 	uint32_t Z = 0;
 	uint32_t countIteration = 0;
 	uint32_t countFlag = 0;
-	uint8_t name[20] = {'r', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+	uint8_t name[20] = {'r', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};  // r + 19 个 0
 	bool visible = false;
 	bool isFiltered = false;
 	bool isLeaf = true;

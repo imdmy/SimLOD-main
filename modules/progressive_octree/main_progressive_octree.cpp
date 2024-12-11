@@ -1,4 +1,4 @@
-
+﻿
 
 #include <iostream>
 #include <filesystem>
@@ -164,7 +164,11 @@ struct PinnedMemPool{
 		}
 	}
 
-	void reserveSlot(){
+	/*
+	为一个数据槽分配内存,并初始化一个 CUDA 事件，然后将它们存储到一个池中。
+	这个数据槽可能用于数据传输，例如，从主机（CPU）到设备（GPU）的内存传输。
+	*/
+	void reserveSlot(){  
 		uint64_t bytesPerSlot = MAX_BATCH_SIZE * sizeof(Point);
 		// reserve some extra bytes in case of IO with special alignment
 		uint64_t alignmentPadding = 1'048'576;
@@ -270,7 +274,9 @@ float3 boxSize = float3{0.0, 0.0, 0.0};
 uint64_t frameCounter = 0;
 
 void initCuda(){
-	cuInit(0);
+	CUresult re = cuInit(0); // 初始化整个CUDA驱动环境，是所有CUDA API的前提条件
+	if (re != cudaSuccess)
+		printf("CUDA::INITIALIZION::ERRAR failed to init");
 	cuDeviceGet(&device, 0);
 	cuCtxCreate(&context, 0, device);
 	cuStreamCreate(&stream_upload, CU_STREAM_NON_BLOCKING);
@@ -280,52 +286,63 @@ void initCuda(){
 	cuDeviceGetAttribute(&numSMs, CU_DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT, device);
 }
 
+void print(glm::mat4 matrix) {  // own 用于输出矩阵
+	for (int i = 0; i < 4; i++) {
+		for (int j = 0; j < 4; j++) {
+			std::cout << matrix[i][j] << " ";
+		}
+		std::cout << std::endl;
+	}
+}
+
+
 Uniforms getUniforms(shared_ptr<GLRenderer> renderer){
 	Uniforms uniforms;
 
-	glm::mat4 world;
-	glm::mat4 view = renderer->camera->view;
-	glm::mat4 proj = renderer->camera->proj;
-	glm::mat4 worldViewProj = proj * view * world;
-	world = glm::transpose(world);
+	// 定义变换矩阵
+	glm::mat4 world;  // 定义世界矩阵，将3D坐标转为世界坐标
+	glm::mat4 view = renderer->camera->view;  // 定义视图矩阵，将3D坐标转为相机视角
+	glm::mat4 proj = renderer->camera->proj;  // 定义投影矩阵，将3D坐标转为2D屏幕坐标
+	glm::mat4 worldViewProj = proj * view * world;  // 定义世界视图投影矩阵，将3D坐标转为屏幕坐标
+	world = glm::transpose(world);   // 求解矩阵的转置，将世界坐标转为3D坐标
 	view = glm::transpose(view);
 	proj = glm::transpose(proj);
 	worldViewProj = glm::transpose(worldViewProj);
 
-	memcpy(&uniforms.world, &world, sizeof(world));
-	memcpy(&uniforms.view, &view, sizeof(view));
-	memcpy(&uniforms.proj, &proj, sizeof(proj));
+	memcpy(&uniforms.world, &world, sizeof(world)); // 如果 &uniforms.world 位于 GPU 的内存中，而 world 位于 CPU 的内存中
+	memcpy(&uniforms.view, &view, sizeof(view));  // memcpy 是一种底层操作，能够在不同的内存区域（例如 CPU 和 GPU 之间）进行数据传递。
+	memcpy(&uniforms.proj, &proj, sizeof(proj));  // memcpy适合处理兆字节级的直接内存复制
 	memcpy(&uniforms.transform, &worldViewProj, sizeof(worldViewProj));
 
 	if(settings.doUpdateVisibility){
 		transform_updatebound = worldViewProj;
 	}
 
-	glm::mat4 transform_inv_updatebound = glm::inverse(transform_updatebound);
+	glm::mat4 transform_inv_updatebound = glm::inverse(transform_updatebound); // 求逆矩阵
 	memcpy(&uniforms.transform_updateBound, &transform_updatebound, sizeof(transform_updatebound));
 	memcpy(&uniforms.transformInv_updateBound, &transform_inv_updatebound, sizeof(transform_inv_updatebound));
 	
-	uniforms.width                    = static_cast<float>(renderer->width);
-	uniforms.height                   = static_cast<float>(renderer->height);
-	uniforms.fovy_rad                 = 3.1415f * renderer->camera->fovy / 180.0;
+	uniforms.width                    = static_cast<float>(renderer->width);  // 定义渲染窗口的宽度 1400
+	uniforms.height                   = static_cast<float>(renderer->height);  // 定义渲染窗口的高度 800
+	uniforms.fovy_rad                 = 3.1415f * renderer->camera->fovy / 180.0;  // 定义摄像机的视场角，单位为弧度 1.047
 	uniforms.time                     = static_cast<float>(now());
 	uniforms.boxMin                   = float3{0.0f, 0.0f, 0.0f};
 	uniforms.boxMax                   = boxSize;
 	uniforms.frameCounter             = frameCounter;
-	uniforms.showBoundingBox          = settings.showBoundingBox;
-	uniforms.doUpdateVisibility       = settings.doUpdateVisibility;
-	uniforms.showPoints               = settings.showPoints;
-	uniforms.colorByNode              = settings.colorByNode;
-	uniforms.colorByLOD               = settings.colorByLOD;
-	uniforms.colorWhite               = settings.colorWhite;
-	uniforms.LOD                      = settings.LOD;
-	uniforms.minNodeSize              = settings.minNodeSize;
-	uniforms.pointSize                = settings.pointSize;
-	uniforms.useHighQualityShading    = settings.useHighQualityShading;
-	uniforms.persistentBufferCapacity = persistentBufferCapacity;
+	uniforms.showBoundingBox          = settings.showBoundingBox; // flase
+	uniforms.doUpdateVisibility       = settings.doUpdateVisibility;  // true
+	uniforms.showPoints               = settings.showPoints;  // true
+	uniforms.colorByNode              = settings.colorByNode;  // false
+	uniforms.colorByLOD               = settings.colorByLOD;  // false
+	uniforms.colorWhite               = settings.colorWhite;  // false
+	uniforms.LOD                      = settings.LOD;  // 0.2
+	uniforms.minNodeSize              = settings.minNodeSize;  // 64.0
+	uniforms.pointSize                = settings.pointSize;  // 1
+	uniforms.useHighQualityShading    = settings.useHighQualityShading;  // true
+	uniforms.persistentBufferCapacity = persistentBufferCapacity;  
 	uniforms.momentaryBufferCapacity  = momentaryBufferCapacity;
-	uniforms.enableEDL                = settings.enableEDL;
-	uniforms.edlStrength              = settings.edlStrength;
+	uniforms.enableEDL                = settings.enableEDL;  // true
+	uniforms.edlStrength              = settings.edlStrength;  // 0.8
 
 	return uniforms;
 }
@@ -371,7 +388,7 @@ void updateOctree(shared_ptr<GLRenderer> renderer){
 	int numGroups     = 1 * numSMs;
 	auto ptrPoints    = cptr_points_ring[0];
 
-	void* args[] = {
+	void* args[] = {  // 设置传递给内核的参数
 		&uniforms, &ptrPoints, 
 		&cptr_buffer, &cptr_buffer_persistent,
 		&cptr_nodes,
@@ -391,9 +408,10 @@ void updateOctree(shared_ptr<GLRenderer> renderer){
 	// printfmt("    cptr_points_ringbuffer:  {} \n", cptr_points_ringbuffer);
 	// printfmt("    ptrPoints:               {} \n", ptrPoints);
 
-	cuEventRecord(ce_update_start, 0);
-	// printfmt("launch update \n");
-	auto res_launch = cuLaunchCooperativeKernel(cuda_program_update->kernels["kernel_construct"],
+	cuEventRecord(ce_update_start, 0); //在默认流上记录开始时间
+	printfmt("launch octree update \n");
+	auto res_launch = cuLaunchCooperativeKernel(
+		cuda_program_update->kernels["kernel_construct"], 
 		numGroups, 1, 1,
 		workgroupSize, 1, 1,
 		0, 0, args);
@@ -405,7 +423,7 @@ void updateOctree(shared_ptr<GLRenderer> renderer){
 		printf("error: %s \n", str);
 	}
 
-	cuEventRecord(ce_update_end, 0);
+	cuEventRecord(ce_update_end, 0); // 在默认流上记录end结束时间
 
 	// benchmark kernel- slows down overall loading!
 	if(requestBenchmark){ 
@@ -462,40 +480,54 @@ void updateOctree(shared_ptr<GLRenderer> renderer){
 // }
 
 // draw the octree with a CUDA kernel
+// 基于 CUDA 和 OpenGL 互操作的渲染
+// 通过 CUDA 对 OpenGL 的纹理进行处理，将计算结果写入 OpenGL 的帧缓冲中，从而实现点云的渲染。
 void renderCUDA(shared_ptr<GLRenderer> renderer){
 
-	Uniforms uniforms = getUniforms(renderer);
+	Uniforms uniforms = getUniforms(renderer);  // 获取渲染所需的 uniforms
 
+	// 注册图形资源到 CUDA 图形资源中
 	static bool registered = false;
 	static GLuint registeredHandle = -1;
-
-	cuGraphicsGLRegisterImage(
+	// 注册 OpenGL 纹理到 CUDA 图形资源中 ， 注册是指让CUDA了解这个资源的存在，并为其分配一个 CUgraphicsResource 句柄， 这个句柄可以用来在CUDA内核中访问这个资源。
+	// 不是任何资源都可以注册，只有特定的 OpenGL 资源（如纹理、帧缓冲区等）可以注册为 CUDA 的图形资源。
+	// 当 CUDA 将 OpenGL 的资源注册为 CUgraphicsResource 后，CUDA 和 OpenGL 实际上就可以直接在 GPU 端访问相同的显存区域。
+	cuGraphicsGLRegisterImage(  
 		&cugl_colorbuffer, 
 		renderer->view.framebuffer->colorAttachments[0]->handle, 
 		GL_TEXTURE_2D, 
-		CU_GRAPHICS_REGISTER_FLAGS_WRITE_DISCARD);
+		CU_GRAPHICS_REGISTER_FLAGS_WRITE_DISCARD);  //CUDA 注册 OpenGL 纹理到 CUDA 图形资源中，并指定映射模式为覆盖写入模式。适用于实时渲染。
 
 	// map OpenGL resources to CUDA
-	vector<CUgraphicsResource> dynamic_resources = {cugl_colorbuffer};
-	cuGraphicsMapResources(static_cast<int>(dynamic_resources.size()), dynamic_resources.data(), ((CUstream)CU_STREAM_DEFAULT));
+	// 映射 OpenGL 资源到 CUDA 地址空间，使得 CUDA 内核可以直接访问这些资源
+	vector<CUgraphicsResource> dynamic_resources = {cugl_colorbuffer}; 
+	cuGraphicsMapResources(
+		static_cast<int>(dynamic_resources.size()), 
+		dynamic_resources.data(), 
+		((CUstream)CU_STREAM_DEFAULT)); // 映射 (map) 之前定义的图形资源到 CUDA 地址空间，使得 CUDA 内核可以直接访问这些资源
 
+	// 获取资源描述
 	CUDA_RESOURCE_DESC res_desc = {};
 	res_desc.resType = CUresourcetype::CU_RESOURCE_TYPE_ARRAY;
-	cuGraphicsSubResourceGetMappedArray(&res_desc.res.array.hArray, cugl_colorbuffer, 0, 0);
+	cuGraphicsSubResourceGetMappedArray(&res_desc.res.array.hArray, cugl_colorbuffer, 0, 0);  // 获取 CUDA 图形资源的数组句柄
 	CUsurfObject output_surf;
 	cuSurfObjectCreate(&output_surf, &res_desc);
 
+	// 开始记录渲染事件，记录渲染开始时间
 	cuEventRecord(ce_render_start, 0);
 
+	// 设置工作组大小和计算需要的组数:
 	float time = static_cast<float>(now());
-	int workgroupSize = 256;
-	
-	int maxActiveBlocksPerSM;
-	cuOccupancyMaxActiveBlocksPerMultiprocessor(&maxActiveBlocksPerSM, 
-		cuda_program_render->kernels["kernel_render"], workgroupSize, 0);
-	
+	int workgroupSize = 256;  // CUDA 内核的工作组大小
+	int maxActiveBlocksPerSM;  // 单个 SM 最多能执行的线程块数  SM（Streaming Multiprocessor）
+	cuOccupancyMaxActiveBlocksPerMultiprocessor(
+		&maxActiveBlocksPerSM, // 输出参数：单个 SM 最多能执行的线程块数
+		cuda_program_render->kernels["kernel_render"], // CUDA需要计算的具体内核是哪个
+		workgroupSize, // 每个线程块的大小，即每个线程块中线程的数量。这个值直接影响活动线程块的数量。
+		0); // 设置共享内存的大小，目前设为0表示不使用共享内存。
 	int numGroups = maxActiveBlocksPerSM * numSMs;
-	
+
+	// 准备参数并调用 CUDA 内核:
 	void* args[] = {
 		&cptr_renderbuffer,
 		&uniforms, 
@@ -503,15 +535,21 @@ void renderCUDA(shared_ptr<GLRenderer> renderer){
 		&output_surf,
 		&cptr_stats,
 		&cptr_frameStart,
-		& cudaprint.cptr
+		&cudaprint.cptr
 	};
-
 	
-	auto res_launch = cuLaunchCooperativeKernel(cuda_program_render->kernels["kernel_render"],
-		numGroups, 1, 1,
-		workgroupSize, 1, 1,
+
+	// 启动 CUDA 内核函数进行渲染: 
+	// numGroups为线程块的数量，48
+	// workgroupSize为每个线程块的大小， 256
+	// args为内核函数的参数。
+	auto res_launch = cuLaunchCooperativeKernel(  //  使用这个函数启动CUDA内核，比如kernel_render内核会被调度到GPU的Streaming Multiprocessor(SM)中执行。
+		cuda_program_render->kernels["kernel_render"],  // 启动一个名为kernel_render的 cooperative kernel（协作核函数）的关键部分
+		numGroups, 1, 1,  // 网络的XYZ方向维度，即线程块的数量
+		workgroupSize, 1, 1,  // 每个线程块的XYZ方向维度，即每个线程块中线程的数量
 		0, 0, args);
 
+	// 检查内核启动是否成功:
 	if(res_launch != CUDA_SUCCESS){
 		const char* str; 
 		cuGetErrorString(res_launch, &str);
@@ -557,9 +595,10 @@ void initCudaProgram(shared_ptr<GLRenderer> renderer){
 
 	momentaryBufferCapacity = cptr_buffer_bytes;
 
-	cuMemAlloc(&cptr_buffer                , cptr_buffer_bytes);
-	cuMemAlloc(&cptr_nodes                 , cptr_nodes_bytes);
-	cuMemAlloc(&cptr_renderbuffer          , cptr_renderbuffer_bytes);
+	// #std::cout << "initCudaProgram START!\n";
+	cuMemAlloc(&cptr_buffer                , cptr_buffer_bytes);  // 300MB 在设备上分配 GPU 内存，用于存储节点和渲染数据，并在&cptr_buffer返回指向分配内存的指针 。分配的内存适合任何类型的变量。内存不会被清除
+	cuMemAlloc(&cptr_nodes                 , cptr_nodes_bytes);  // 40MB 线性内存通常使用cuMenAlloc()进行分配，它是一种线性内存分配器，可以分配固定大小的内存块。
+	cuMemAlloc(&cptr_renderbuffer          , cptr_renderbuffer_bytes);  // 200MB cuMemAlloc分配的内存可以使用cudaFree()进行释放
 	cuMemAlloc(&cptr_stats                 , sizeof(Stats));
 	cuMemAlloc(&cptr_numBatchesUploaded    , 4);
 	cuMemAlloc(&cptr_batchSizes            , 4 * BATCH_STREAM_SIZE);
@@ -617,12 +656,20 @@ void initCudaProgram(shared_ptr<GLRenderer> renderer){
 		.kernels = {"kernel"}
 	});
 
+	/*
+	struct CudaModularProgramArgs{
+		vector<string> modules;
+		vector<string> kernels;
+	};
+	*/
 	cuda_program_render = new CudaModularProgram({
-		.modules = {
-			"./modules/progressive_octree/render.cu",
-			"./modules/progressive_octree/utils.cu",
+		.modules = {  // vector<string> modules;
+			"./modules/progressive_octree/render.cu",  // 加载渲染模块，构造函数会对其进行编译
+			"./modules/progressive_octree/utils.cu",  
 		},
-		.kernels = {"kernel_render"}
+		.kernels = {  // vector<string> kernels;
+			"kernel_render"
+		} 
 	});
 
 	// cuda_program_filter = new CudaModularProgram({
@@ -685,11 +732,14 @@ void reload(){
 
 	// query bounding box and number of points in input files
 	// vector<PointBatch> batches;
+	// 查询输入文档中的边界框和点数
+	// 矢量批次;
 	for(string path : paths){
 
-		if(!fs::exists(path)) continue;
-
-		numBytesTotal += fs::file_size(path);
+		// 在循环中进行判断，如果当前的path实际路径不存在，continue 用于跳过当前循环
+		if(!fs::exists(path)) continue; 
+		
+		numBytesTotal += fs::file_size(path); // 原子类型的 numBytesTotal用来累记文件大小
 
 		if(iEndsWith(path, "laz")){
 			lazInBatches = true;
@@ -772,37 +822,43 @@ void reload(){
 	processFrameTimes.clear();
 }
 
-void reset(shared_ptr<GLRenderer> renderer){
+void reset(shared_ptr<GLRenderer> renderer){ // 每次检测到上传新的数据集，使用reset来重置渲染过程。
 	// before locking, notify threads that they should not try to acquire the lock (otherwise we might wait for a long time to lock the others out)
+	// 表示当前正在执行重置操作。这是为了通知其他线程当前不应该尝试获取锁，以避免在重置期间发生冲突。
 	resetInProgress = true;
 
-	// lock out upload threads and loader threads
+	// lock out upload threads and loader threads 锁定加载线程和上传线程
 	for (size_t i = 0; i < mtx_loader.size(); ++i) {
 		mtx_loader[i]->lock();
 	}
 	lock_guard<mutex> lock_upload(mtx_uploader);
 
-	// finish pending upload
+	// finish pending upload 完成等待上传
 	cuCtxSynchronize();
-
+	
 	// now reset octree-construction related state on device
+	// 现在重置设备上的 octree 构造相关状态
 	resetCUDA(renderer);
 	cuCtxSynchronize();
 
 	// read stats just to make sure device and host are on the same page
+	// 读取统计信息确保主机和设备上的状态信息一致。
 	cuMemcpyDtoHAsync(h_stats_pinned, cptr_stats, sizeof(Stats), ((CUstream)CU_STREAM_DEFAULT));
 	memcpy(&stats, h_stats_pinned, sizeof(Stats));
 	cuCtxSynchronize();
 
 	// finally, reset host state to start reloading current data set from disk
+	// 最后，重置主机状态以开始从磁盘重新加载当前数据集
 	reload();
 
 	requestReset = false;
 
 	// notify other threads that they may now try to acquire the lock again
+	// 通知其他线程，它们现在可以尝试再次获取锁
 	resetInProgress = false;
 
 	// unlock loader threads
+	// 加载线程解锁
 	for (size_t i = 0; i < mtx_loader.size(); ++i) {
 		mtx_loader[i]->unlock();
 	}
@@ -958,8 +1014,11 @@ void spawnLoader(size_t i) {
 }
 
 // Spawns a thread that uploads data to the GPU
+// 启动一个线程，用于将数据上传到GPU
 // - Asynchronously schedules uploads in stream_upload
+// - 在 stream_upload 中异步安排上传
 // - After every async copy, it also asynchronously updates the number of uploaded points
+// - 在每次异步复制之后，它还会异步更新已上传点的数量
 void spawnUploader(shared_ptr<GLRenderer> renderer) {
 	double timestamp = now();
 
@@ -1022,6 +1081,7 @@ void spawnUploader(shared_ptr<GLRenderer> renderer) {
 				lock_guard<mutex> lock_batchesInPinnedMemory(mtx_batchesInPinnedMemory);
 
 				if (batchesInPinnedMemory.size() > 0) {
+
 					batch = batchesInPinnedMemory.front();
 					batchesInPinnedMemory.pop_front();
 				} else {
@@ -1064,15 +1124,18 @@ void spawnUploader(shared_ptr<GLRenderer> renderer) {
 
 int main(){
 
-	auto renderer = make_shared<GLRenderer>();
+	auto renderer = make_shared<GLRenderer>();	// 在堆中创建渲染器对象， 返回一个指向该对象的std::shared_ptr, 用于自动管理其生命周期
 	auto cpu = getCpuData();
 	// int numThreads = 2 * static_cast<int>(cpu.numProcessors);
 	int numThreads = 2 * static_cast<int>(cpu.numProcessors);
 	// numThreads = 16;
 	// int numThreads = max(2 * cpu.numProcessors - 10, 2ull);
-	printfmt("cpu.numProcessors: {} \n", cpu.numProcessors);
-	printfmt("launching {} loader threads \n", numThreads);
-
+	printfmt("cpu.numProcessors: {} \n", cpu.numProcessors);  // 24 
+	printfmt("launching {} loader threads \n", numThreads);  // 48 loader threads
+	
+	// 没有上下文
+	//const unsigned char* renderer = glGetString(GL_RENDERER);
+	//fprintf(stdout, "Graphics card: ", renderer); // own
 
 	renderer->controls->yaw    = -1.15;
 	renderer->controls->pitch  = -0.57;
@@ -1117,13 +1180,15 @@ int main(){
 	
 	reload();
 
-	renderer->onFileDrop([&](vector<string> files){
-		vector<string> pointCloudFiles;
-
+	// 检测文件输入
+	renderer->onFileDrop([&](vector<string> files){  // 当文件拖入渲染框中，使用glfw的窗口回调函数调用这个lambda函数
+		// 回调函数，当用户将（多个）文件拖入渲染框中，调用这个lambda函数
+		vector<string> pointCloudFiles;  // 存储点云文件名称
+		// # std::cout << "files name is :" << files << std::endl;  // files name is :G:\pointcloudrendering\potree\pointclouds\A1.las
 		t_drop_start = now();
 		printfmt("drop at {:.3f} \n", now());
 
-		for(auto file : files){
+		for(auto file : files){  // 遍历所有拖入的点云，进行分析渲染
 			printfmt("dropped: {} \n", file);
 
 			if(iEndsWith(file, "las") || iEndsWith(file, "laz")){
@@ -1133,11 +1198,11 @@ int main(){
 			}
 		}
 
-		paths = pointCloudFiles;
+		paths = pointCloudFiles;  // path 在全局定义,这里只是赋值
 
 		reset(renderer);
 
-		if(settings.autoFocusOnLoad){
+		if(settings.autoFocusOnLoad){  // 调整初始视角
 			renderer->controls->yaw = -1.15;
 			renderer->controls->pitch = -0.57;
 			renderer->controls->radius = sqrt(boxSize.x * boxSize.x + boxSize.y * boxSize.y + boxSize.z * boxSize.z);
@@ -1149,7 +1214,7 @@ int main(){
 		}
 	});
 
-	auto update = [&](){
+	auto update = [&](){ 
 		cudaprint.update();
 
 		renderer->camera->fovy = settings.fovy;
@@ -1160,23 +1225,23 @@ int main(){
 
 		timeSinceLastFrame = static_cast<float>(now()) - lastFrameTime;
 		lastFrameTime = static_cast<float>(now());
-
+		
 		renderer->view.framebuffer->setSize(renderer->width, renderer->height);
 
-		glBindFramebuffer(GL_FRAMEBUFFER, renderer->view.framebuffer->handle);
+		glBindFramebuffer(GL_FRAMEBUFFER, renderer->view.framebuffer->handle);  // 绑定framebuffer
 
-		if(!lastBatchFinishedDevice){
-			processFrameTimes.push_back(timeSinceLastFrame);
+		if(!lastBatchFinishedDevice){  // 等待上一批数据上传完毕
+			processFrameTimes.push_back(timeSinceLastFrame);  // 记录时间
 		}
 
 		if(requestReset){
 			reset(renderer);
 		}
 
-		renderCUDA(renderer);
+		renderCUDA(renderer);   // 调用cuda渲染函数
 
 		if(!lastBatchFinishedDevice){
-			updateOctree(renderer);
+			updateOctree(renderer); // 更新octree
 		}
 
 		// if(requestColorFiltering){
@@ -1251,7 +1316,7 @@ int main(){
 			}
 			ImGui::SameLine(0.0f);
 
-			if(ImGui::Button("Reset + Benchmark")){
+			if(ImGui::Button("Reset + Benchmark")){ 
 				requestReset = true;
 				requestBenchmark = true;
 				requestStepthrough = false;

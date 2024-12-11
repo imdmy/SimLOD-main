@@ -1,4 +1,4 @@
-
+﻿
 #pragma once
 
 #include <cooperative_groups.h>
@@ -228,11 +228,11 @@ struct AllocatorGlobal{
 
 struct Allocator{
 
-	uint8_t* buffer = nullptr;
-	int64_t offset = 0;
+	uint8_t* buffer = nullptr; // pointer to the start of the buffer (own)
+	int64_t offset = 0;  // 分配位置在缓冲区中的偏移量
 
 	template<class T>
-	Allocator(T buffer){
+	Allocator(T buffer){  // 模板构造函数， 接受一个指针，并将其转换为uint8_t*类型
 		this->buffer = reinterpret_cast<uint8_t*>(buffer);
 		this->offset = 0;
 	}

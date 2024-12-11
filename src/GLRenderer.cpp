@@ -62,7 +62,7 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset){
 
 void drop_callback(GLFWwindow* window, int count, const char **paths){
 	for(int i = 0; i < count; i++){
-		cout << paths[i] << endl;
+		cout <<  paths[i] << endl;
 	}
 }
 
@@ -89,6 +89,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 }
 
 GLRenderer::GLRenderer(){
+	cout << "<GLRenderer constructed!>" << endl; // own
 	this->controls = _controls;
 	camera = make_shared<Camera>();
 
@@ -112,17 +113,21 @@ void GLRenderer::init(){
 	glfwWindowHint(GLFW_VISIBLE, true);
 
 	int numMonitors;
-	GLFWmonitor** monitors = glfwGetMonitors(&numMonitors);
+	GLFWmonitor** monitors = glfwGetMonitors(&numMonitors);  // 获取所有显示器
 
 	cout << "<create windows>" << endl;
-	if (numMonitors > 1) {
+	cout << "numMonitors: " << numMonitors << endl;
+	if (numMonitors > 1) {  // 处理多显示器情形
 		const GLFWvidmode * modeLeft = glfwGetVideoMode(monitors[0]);
 		const GLFWvidmode * modeRight = glfwGetVideoMode(monitors[1]);
 
-		window = glfwCreateWindow(1920, 1080, "stuff", nullptr, nullptr);
+		cout << "modeLeft->width: " << modeLeft->width << ", modeLeft->height: " << modeLeft->height << endl;  // own 主屏幕的分辨率
+
+		window = glfwCreateWindow(1920, 1080, "Simultaneous LOD Generation and Rendering", nullptr, nullptr);
 		// window = glfwCreateWindow(modeRight->width, modeRight->height - 300, "Simple example", nullptr, nullptr);
 
-		if (!window) {
+		if (window == nullptr) { // 创建窗口失败
+			cout << "Failed to create GLFW window" << endl;
 			glfwTerminate();
 			exit(EXIT_FAILURE);
 		}
@@ -134,10 +139,18 @@ void GLRenderer::init(){
 		// glfwSetWindowPos(window, xpos, ypos);
 
 		// FIRST
-		// glfwSetWindowPos(window, 0, 0);
-	} else {
-		const GLFWvidmode * mode = glfwGetVideoMode(monitors[0]);
+		glfwSetWindowPos(window, 210, 100);  // 窗口位置
+		// 设置窗口大小
+		glfwSetWindowSize(window, 1400, 900);  // 窗口大小
 
+	} else if (numMonitors == 1) {  // 处理单显示器情形
+	} else {
+		const GLFWvidmode * mode = glfwGetVideoMode(monitors[0]);  // 获取主显示器的的视频模式（分辨率、颜色深度、刷新率）
+		/*
+		out << "width: " << mode->width << ", height: " << mode->height << endl;
+		cout << "refresh rate: " << mode->refreshRate << endl;
+		cout << "RGB_bits: " << mode->redBits << " " << mode->greenBits << " " << mode->blueBits << endl;
+		*/
 		window = glfwCreateWindow(mode->width - 100, mode->height - 100, "Simple example", nullptr, nullptr);
 
 		if (!window) {
@@ -149,28 +162,28 @@ void GLRenderer::init(){
 	}
 
 	cout << "<set input callbacks>" << endl;
-	glfwSetKeyCallback(window, key_callback);
-	glfwSetCursorPosCallback(window, cursor_position_callback);
-	glfwSetMouseButtonCallback(window, mouse_button_callback);
-	glfwSetScrollCallback(window, scroll_callback);
-	// glfwSetDropCallback(window, drop_callback);
+	glfwSetKeyCallback(window, key_callback);  // 键盘输入回调
+	glfwSetCursorPosCallback(window, cursor_position_callback);  // 鼠标位置回调
+	glfwSetMouseButtonCallback(window, mouse_button_callback);  //	鼠标按钮回调
+	glfwSetScrollCallback(window, scroll_callback);  // 鼠标滚轮回调
+	// glfwSetDropCallback(window, drop_callback);  // 文件拖放回调
 
 	static GLRenderer* ref = this;
-	glfwSetDropCallback(window, [](GLFWwindow*, int count, const char **paths){
+	glfwSetDropCallback(window, [](GLFWwindow*, int count, const char **paths){  // 文件拖放回调, lambda
 
 		vector<string> files;
-		for(int i = 0; i < count; i++){
+		for(int i = 0; i < count; i++){  // 对拖放的文件进行遍历，存入file容器
 			string file = paths[i];
 			files.push_back(file);
 		}
 
-		for(auto &listener : ref->fileDropListeners){
-			listener(files);
+		for(auto &listener : ref->fileDropListeners){  // 遍历fileDropListeners容器，调用每个listener的operator()
+			listener(files);  // 调用listener的operator() 使用lambda回调执行回调函数处理文件
 		}
 	});
 
-	glfwMakeContextCurrent(window);
-	glfwSwapInterval(0);
+	glfwMakeContextCurrent(window);  // 设置当前窗口的上下文
+	glfwSwapInterval(0); // 垂直同步
 
 	GLenum err = glewInit();
 	if (GLEW_OK != err) {
@@ -222,18 +235,19 @@ void GLRenderer::loop(function<void(void)> update, function<void(void)> render){
 
 	int fpsCounter = 0;
 	double start = now();
-	double tPrevious = start;
-	double tPreviousFPSMeasure = start;
+	double tPrevious = start; // 定义开始时间
+	double tPreviousFPSMeasure = start; 
 
-	vector<float> frameTimes(1000, 0);
+	vector<float> frameTimes(1000, 0); // 创建一个大小为1000 * sizeof(float)大小的vector，将数组中1000个元素都用0来初始化。
 
+	// 渲染循环
 	while (!glfwWindowShouldClose(window)){
 
 		// TIMING
-		double timeSinceLastFrame;
+		double timeSinceLastFrame; 
 		{
 			double tCurrent = now();
-			timeSinceLastFrame = tCurrent - tPrevious;
+			timeSinceLastFrame = tCurrent - tPrevious;  // 从loop开始到while渲染开始的时间
 			tPrevious = tCurrent;
 
 			double timeSinceLastFPSMeasure = tCurrent - tPreviousFPSMeasure;
@@ -247,10 +261,9 @@ void GLRenderer::loop(function<void(void)> update, function<void(void)> render){
 			frameTimes[frameCount % frameTimes.size()] = static_cast<float>(timeSinceLastFrame);
 		}
 		
-
 		// WINDOW
 		int width, height;
-		glfwGetWindowSize(window, &width, &height);
+		glfwGetWindowSize(window, &width, &height);  // 获取当前的窗口尺寸
 		camera->setSize(width, height);
 		this->width = width;
 		this->height = height;
@@ -424,12 +437,12 @@ void Texture::setSize(int width, int height) {
 
 	if (needsResize) {
 
-		glDeleteTextures(1, &this->handle);
+		glDeleteTextures(1, &this->handle);  // 删除 ‘1’ 个纹理对象
 		glCreateTextures(GL_TEXTURE_2D, 1, &this->handle);
 
-		glTextureParameteri(this->handle, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTextureParameteri(this->handle, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);  // GL_CLAMP_TO_EDGE：表示纹理坐标超出 0.0 到 1.0 的范围时，纹理会被拉伸到边缘颜色。这通常用于防止纹理在重复时产生边缘效应。
 		glTextureParameteri(this->handle, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glTextureParameteri(this->handle, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTextureParameteri(this->handle, GL_TEXTURE_MIN_FILTER, GL_NEAREST);  // 分别指定纹理在缩小和放大时的过滤方式：GL_NEAREST：表示使用最近邻过滤，这种方法比较简单直接，不进行插值。优点是速度快，但放大纹理时可能显得不平滑。
 		glTextureParameteri(this->handle, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
 		glTextureStorage2D(this->handle, 1, this->colorType, width, height);

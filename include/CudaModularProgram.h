@@ -64,9 +64,10 @@ struct CudaModule{
 
 		cout << "================================================================================" << endl;
 		cout << "=== COMPILING: " << fs::path(path).filename().string() << endl;
+		cout << "path: " << fs::path(path).string() << endl;  // own
 		cout << "================================================================================" << endl;
 
-		success = false;
+		//success = false;
 
 		string dir = fs::path(path).parent_path().string();
 		// string optInclude = "-I " + dir;
@@ -81,8 +82,8 @@ struct CudaModule{
 		nvrtcProgram prog;
 		string source = readFile(path);
 		nvrtcCreateProgram(&prog, source.c_str(), name.c_str(), 0, NULL, NULL);
-		std::vector<const char*> opts = { 
-			"--gpu-architecture=compute_89",
+		std::vector<const char*> opts = {
+			"--gpu-architecture=compute_89",  // Ada support  将C++源码编译为PTX时，指定虚拟架构的计算能力，为compute_89，即支持Ada
 			// "--gpu-architecture=compute_86",
 			"--use_fast_math",
 			"--extra-device-vectorization",
@@ -178,7 +179,8 @@ struct CudaModularProgram{
 
 			module->compile();
 
-			monitorFile(modulePath, [&, module]() {
+			monitorFile(modulePath, [&, module]() {  // 在运行时监视文件变化，并重新编译、链接  // bug: 似乎没有监视到文件变化
+				//cout << " >>> === RECOMPILING: " << moduleName << endl; // own  
 				module->compile();
 				link();
 			});
@@ -218,7 +220,7 @@ struct CudaModularProgram{
 		int minor = 0;
 		cuDeviceGetAttribute(&major, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, cuDevice);
 		cuDeviceGetAttribute(&minor, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR, cuDevice);
-
+		 
 		int arch = major * 10 + minor;
 		string strArch = std::format("-arch=sm_{}", arch);
 

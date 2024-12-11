@@ -843,7 +843,7 @@ void kernel_construct(
 	backlog_targets    = allocator->alloc<Node**>(VOXEL_BACKLOG_CAPACITY * sizeof(Node*));
 	numBacklogVoxels   = allocator->alloc<uint32_t*>(4);
 
-	// List of nodes that received too many points and ned to be split
+	// List of nodes that received too many points and need to be split 用于存储那些因为接收到过多点而需要被分割的节点列表。
 	Node** spillingNodes         =  allocator->alloc<Node**>(100'000 * sizeof(Node*));
 	uint32_t* numSpillingNodes   =  allocator->alloc<uint32_t*>(4);
 
@@ -859,9 +859,9 @@ void kernel_construct(
 
 	float3 boxSize      = uniforms.boxMax - uniforms.boxMin;
 	float octreeSize    = max(max(boxSize.x, boxSize.y), boxSize.z);
-	float3 octreeMin    = uniforms.boxMin;
-	float3 octreeMax    = octreeMin + octreeSize;
-	float3 cubePosition = uniforms.boxMin + octreeSize * 0.5f;
+	float3 octreeMin    = uniforms.boxMin;  // 初始化为0 
+	float3 octreeMax    = octreeMin + octreeSize; 
+	float3 cubePosition = uniforms.boxMin + octreeSize * 0.5f; // 
 
 	auto tStartExpand = nanotime();
 

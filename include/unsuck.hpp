@@ -1,4 +1,4 @@
-
+﻿
 #pragma once
 
 #define NOMINMAX
@@ -699,6 +699,7 @@ inline void schedule(std::function<void()> event) {
 
 inline void monitorFile(string file, std::function<void()> callback) {
 
+	//std::cout << "Current working directory: " << std::filesystem::current_path() << std::endl;
 	std::thread([file, callback]() {
 
 		if (!fs::exists(file)) {
@@ -716,7 +717,7 @@ inline void monitorFile(string file, std::function<void()> callback) {
 
 			auto currentWriteTime = fs::last_write_time(fs::path(file));
 
-			if (currentWriteTime > lastWriteTime) {
+			if (currentWriteTime > lastWriteTime) {  // 检测的文件是项目构建后的输出文件, debug build模式下的modules/-> render.cu。 而不是cmake构建前的项目原始文档中的render.cu
 
 				//callback();
 				schedule(callback);
