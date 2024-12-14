@@ -1,3 +1,5 @@
+# 此版本构建测试未通过
+
 # SimLOD-main
  用于学习SimLOD并保存可运行版本
  cuda工具版本 cuda_12.4.1_551.78_windows.exe
