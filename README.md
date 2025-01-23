@@ -1,3 +1,5 @@
+# 此版本构建测试未通过： bug
+Assertion failed: window != NULL, file D:\work\VSsource\repos\imdmy\SimLOD-main-main (1)\SimLOD-main-main\build\_deps\glfw-src\src\input.c, line 832
 # SimLOD-main
  用于学习SimLOD并保存可运行版本
  cuda工具版本 cuda_12.4.1_551.78_windows.exe
