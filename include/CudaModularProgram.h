@@ -163,14 +163,22 @@ struct CudaModularProgram{
 	vector<string> kernelNames;
 	unordered_map<string, CUfunction> kernels;
 
-
+	// CudaModularProgram 类的构造函数
+	// 输入CudaModularProgramArgs结构体，包含模块路径 vector<string> 和核函数名称 vector<string>
+	/*
+	struct CudaModularProgramArgs{
+		vector<string> modules;
+		vector<string> kernels;
+	};
+	*/
 	CudaModularProgram(CudaModularProgramArgs args){
 	// CudaModularProgram(vector<string> modulePaths, vector<string> kernelNames = {}){
 
 		vector<string> modulePaths = args.modules;
-		vector<string> kernelNames = args.kernels;
+		//vector<string> kernelNames = args.kernels;
 
-		this->kernelNames = kernelNames;
+		//this->kernelNames = kernelNames;
+		this->kernelNames = args.kernels;
 
 		for(auto modulePath : modulePaths){
 

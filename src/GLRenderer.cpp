@@ -250,7 +250,7 @@ void GLRenderer::loop(function<void(void)> update, function<void(void)> render){
 			timeSinceLastFrame = tCurrent - tPrevious;  // 从loop开始到while渲染开始的时间
 			tPrevious = tCurrent;
 
-			double timeSinceLastFPSMeasure = tCurrent - tPreviousFPSMeasure;
+			double timeSinceLastFPSMeasure = tCurrent - tPreviousFPSMeasure; // 计算render函数开始到现在的时间，计算上次测量到当前的时间。
 
 			if(timeSinceLastFPSMeasure >= 1.0){
 				this->fps = double(fpsCounter) / timeSinceLastFPSMeasure;
@@ -258,7 +258,7 @@ void GLRenderer::loop(function<void(void)> update, function<void(void)> render){
 				tPreviousFPSMeasure = tCurrent;
 				fpsCounter = 0;
 			}
-			frameTimes[frameCount % frameTimes.size()] = static_cast<float>(timeSinceLastFrame);
+			frameTimes[frameCount % frameTimes.size()] = static_cast<float>(timeSinceLastFrame); // 将当前帧渲染的时间记录到数组（依据索引）中
 		}
 		
 		// WINDOW
@@ -268,7 +268,7 @@ void GLRenderer::loop(function<void(void)> update, function<void(void)> render){
 		this->width = width;
 		this->height = height;
 
-		EventQueue::instance->process();
+		EventQueue::instance->process(); //实现了一个事件队列的处理机制，其中的逻辑通过多线程安全方式处理了一个存储事件（或任务）的队列。
 
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		glViewport(0, 0, this->width, this->height);
@@ -291,8 +291,8 @@ void GLRenderer::loop(function<void(void)> update, function<void(void)> render){
 		{ // UPDATE & RENDER
 			camera->update();
 			update();
-			camera->update();
 
+			camera->update();
 			render();
 		}
 

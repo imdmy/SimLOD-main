@@ -377,18 +377,20 @@ void resetCUDA(shared_ptr<GLRenderer> renderer){
 	cuCtxSynchronize();
 }
 
-// incrementally updates the octree on the GPU
+// incrementally updates the octree on the GPU 
+// 增量式地在 GPU上更新 octree
 void updateOctree(shared_ptr<GLRenderer> renderer){
 
 	// cuCtxSynchronize();
 	
-	Uniforms uniforms = getUniforms(renderer);
+	Uniforms uniforms = getUniforms(renderer); // uniforms用于传递 每帧渲染需要的全局数据, 包括变换矩阵、视角矩阵、投影矩阵、渲染窗口的宽高、摄像机视场角、时间、渲染帧数、渲染窗口的最小最大坐标、渲染帧的序号、是否显示包围盒、是否更新可见性、是否显示点、是否按节点着色、是否按 LOD 着色、是否白色着色、LOD 值、最小节点尺寸、点大小、是否使用高质量着色、持久缓冲区容量、瞬时缓冲区容量、是否启用 EDL、EDL 强度
 
 	int workgroupSize = 256;
 	int numGroups     = 1 * numSMs;
 	auto ptrPoints    = cptr_points_ring[0];
-
-	void* args[] = {  // 设置传递给内核的参数
+	
+	// 设置传递给内核的参数 
+	void* args[] = {  // 指针数组，每个元素的类型是 void*，表示可以存储任意类型的指针。 将内存地址保存至args中传递给内核。
 		&uniforms, &ptrPoints, 
 		&cptr_buffer, &cptr_buffer_persistent,
 		&cptr_nodes,
@@ -409,7 +411,7 @@ void updateOctree(shared_ptr<GLRenderer> renderer){
 	// printfmt("    ptrPoints:               {} \n", ptrPoints);
 
 	cuEventRecord(ce_update_start, 0); //在默认流上记录开始时间
-	printfmt("launch octree update \n");
+	// printfmt("launch octree update \n");
 	auto res_launch = cuLaunchCooperativeKernel(
 		cuda_program_update->kernels["kernel_construct"], 
 		numGroups, 1, 1,
@@ -1221,9 +1223,9 @@ int main(){
 		renderer->camera->update();
 	};
 
-	auto render = [&](){
+	auto render = [&](){ // 渲染主流程算法
 
-		timeSinceLastFrame = static_cast<float>(now()) - lastFrameTime;
+		timeSinceLastFrame = static_cast<float>(now()) - lastFrameTime; // 将时间转换为浮点数存储
 		lastFrameTime = static_cast<float>(now());
 		
 		renderer->view.framebuffer->setSize(renderer->width, renderer->height);
@@ -1238,7 +1240,7 @@ int main(){
 			reset(renderer);
 		}
 
-		renderCUDA(renderer);   // 调用cuda渲染函数
+		renderCUDA(renderer);   // 输入参数，调用执行cuda渲染函数
 
 		if(!lastBatchFinishedDevice){
 			updateOctree(renderer); // 更新octree

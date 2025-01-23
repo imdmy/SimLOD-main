@@ -1139,7 +1139,7 @@ extern "C" __global__ void kernel_render(
 	grid.sync();
 
 	float3 boxSize = uniforms.boxMax - uniforms.boxMin;
-	float cubeSize = max(max(boxSize.x, boxSize.y), boxSize.z);
+	float cubeSize = max(max(boxSize.x, boxSize.y), boxSize.z); // 求出最大bounding box的边长
 	float3 cubeMin = uniforms.boxMin;
 	float3 cubeMax = cubeMin + cubeSize;
 	float3 cubePosition = uniforms.boxMin + cubeSize * 0.5f;
